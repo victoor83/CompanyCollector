@@ -10,6 +10,6 @@
   </ItemGroup>
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="copy /Y $(SolutionDir)chromedriver.exe $(TargetDir)" />
+    <Exec Command="copy /Y $(ProjectDir)chromedriver.exe $(TargetDir)" />
   </Target>
 </Project>
