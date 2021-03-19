@@ -10,30 +10,36 @@ namespace CompanyCollector
 {
     public class Companies
     {
+        private ChromeOptions _options;
+
         private IWebDriver _driver;
+
         private DelLogger _logger;
+
         public Companies(DelLogger logger)
         {
+            //Initialize options for Driver
+            _options = new ChromeOptions();
+            //_options.AddArguments("headless", "--blink-settings=imagesEnabled=false");
 
             //Initialize the instance
-            _driver = new ChromeDriver();
+            _driver = new ChromeDriver(_options);
             _logger = logger;
         }
 
-
         public List<string> GetCompanies(int pageAmount)
         {
-            string url = "https://www.europages.de/unternehmen/Produktion.html";
+            string url = "https://www.europages.de/unternehmen/Deutschland/fenster.html";
 
             var companyList = new List<string>();
 
             try
             {
-                for (int i = 1; i < 1000; i++)
+                for(int i = 0; i <= pageAmount; i++)
                 {
-                    if (i > 1)
+                    if(i > 0)
                     {
-                        companyList.AddRange(GetCompaniesFromPage($"https://www.europages.de/unternehmen/pg-{i}/Produktion.html"));
+                        companyList.AddRange(GetCompaniesFromPage($"https://www.europages.de/unternehmen/pg-{i}/Deutschland/fenster.html"));
                     }
                     else
                     {
@@ -43,7 +49,7 @@ namespace CompanyCollector
                     _logger("Proceed page nr:" + i);
                 }
             }
-            catch (Exception e)
+            catch(Exception e)
             {
                 Console.WriteLine(e);
             }
@@ -57,35 +63,57 @@ namespace CompanyCollector
             }
 
             return companyList;
-
         }
 
         private List<string> GetCompaniesFromPage(string url)
         {
-            //launch gmail.com
             _driver.Navigate().GoToUrl(url);
 
-            //maximize the browser
-            _driver.Manage().Window.Minimize();
+            //wait for 0.1 seconds
+            Task.Delay(100).Wait();
 
-            //find the element by xpath and enter the email address which you want to login.
-            //driver.FindElement(By.XPath("//input[@aria-label='Email or phone']")).SendKeys("email adress);
-
-            //wait for a seconds
-            Task.Delay(1000).Wait();
-
-            //find the Next Button and click on it.
-
-            var all = _driver.FindElements(By.XPath("//a[contains(@class,'company-name')]"));
+            var pages = _driver.FindElements(By.XPath("//a[contains(@class,'company-name')]"));
 
             List<string> lst = new List<string>();
-            foreach (var a in all)
+
+            foreach(var company in pages)
             {
-                lst.Add(a.Text);
+                //Collecting cata of all companies from single page
+                string companyLink = company.GetAttribute("href");
+                ((IJavaScriptExecutor)_driver).ExecuteScript("window.open();");
+                _driver.SwitchTo().Window(_driver.WindowHandles[1]);
+                _driver.Navigate().GoToUrl(companyLink);
+                Task.Delay(100).Wait();
+                lst.Add(string.Join(",", GetCompanyDetails())); //Compiling data of a single company into one string
+                _driver.SwitchTo().Window(_driver.WindowHandles[0]);
+                Task.Delay(100).Wait();
             }
 
             return lst;
         }
 
+        private List<string> GetCompanyDetails()
+        {
+            //Collecting data of a single company
+            List<string> line = new List<string>();
+            line.Add(_driver.FindElement(By.XPath("//div[contains(@class, 'company-content')]/h3[contains(@itemprop, 'name')]")).GetAttribute("innerText").Replace(",", "")
+                .Replace("\r", "").Replace("\n", " "));
+            _logger(line[0]);
+            line.Add(_driver.FindElement(By.XPath("//dd[contains(@class, 'company-country')]/span[2]")).GetAttribute("innerText").Replace(",", "").Replace("\r", "")
+                .Replace("\n", " "));
+            line.Add(_driver.FindElement(By.XPath("//dd[contains(@itemprop, 'addressLocality')]/pre")).GetAttribute("innerText").Replace(",", "").Replace("\r", "")
+                .Replace("\n", " "));
+            try
+            {
+                line.Add(_driver.FindElement(By.XPath("//div[contains(@class, 'page__layout-sidebar--container-desktop')]/a[contains(@itemprop, 'url')]")).GetAttribute("href"));
+            }
+            catch(NoSuchElementException)
+            {
+                line.Add("This company has no website.");
+            }
+
+            line.Add(_driver.FindElement(By.XPath("//p[contains(@class, 'company-description')]")).GetAttribute("innerText").Replace(",", "").Replace("\r", "").Replace("\n", " "));
+            return line;
+        }
     }
 }
